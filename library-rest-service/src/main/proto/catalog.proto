@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "fr.library.grpc";
+option java_outer_classname = "CatalogProto";
+
+package catalog;
+
+// Contrat RPC du service catalogue (partagé entre le serveur RPC et le service REST).
+service CatalogService {
+  rpc GetBook (BookIdRequest) returns (BookResponse);
+  rpc ListBooks (ListBooksRequest) returns (BookListResponse);
+  rpc AddBook (AddBookRequest) returns (BookResponse);
+  // Décrémente le nombre d'exemplaires disponibles (emprunt).
+  rpc ReserveCopy (BookIdRequest) returns (BookResponse);
+  // Incrémente le nombre d'exemplaires disponibles (retour).
+  rpc ReleaseCopy (BookIdRequest) returns (BookResponse);
+}
+
+message ListBooksRequest {}
+
+message BookIdRequest {
+  int64 id = 1;
+}
+
+message AddBookRequest {
+  string isbn = 1;
+  string title = 2;
+  string author = 3;
+  int32 total_copies = 4;
+}
+
+message BookResponse {
+  int64 id = 1;
+  string isbn = 2;
+  string title = 3;
+  string author = 4;
+  int32 total_copies = 5;
+  int32 available_copies = 6;
+}
+
+message BookListResponse {
+  repeated BookResponse books = 1;
+}

@@ -1,0 +1,38 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: library-rest-service
+  datasource:
+    url: jdbc:h2:mem:librarydb;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: always
+  h2:
+    console:
+      enabled: true   # http://localhost:8080/h2-console  (JDBC URL : jdbc:h2:mem:librarydb)
+
+# Connexion au serveur RPC catalogue
+grpc:
+  client:
+    catalog:
+      address: static://localhost:9090
+      negotiation-type: plaintext
+
+# Règles métier (injectées avec @Value dans LoanService)
+library:
+  max-active-loans: 3
+  loan-duration-days: 21
+
+logging:
+  level:
+    root: INFO
+    fr.library: DEBUG

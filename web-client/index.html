@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bibliothèque</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 960px; padding: 16px; color: #222; }
+    h1 { margin-bottom: 4px; }
+    section { margin-top: 28px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #ddd; }
+    form { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+    input, select, button { padding: 6px 8px; font: inherit; }
+    button { cursor: pointer; }
+    #message { padding: 8px 12px; border-radius: 6px; display: none; margin-top: 12px; }
+    #message.ok { display: block; background: #e6f4ea; color: #1e6b33; }
+    #message.error { display: block; background: #fdecea; color: #a12622; }
+  </style>
+</head>
+<body>
+  <h1>Bibliothèque</h1>
+  <small>Client web → API REST (localhost:8080) → serveur RPC catalogue (localhost:9090)</small>
+  <div id="message"></div>
+
+  <section>
+    <h2>Livres</h2>
+    <table>
+      <thead><tr><th>Id</th><th>Titre</th><th>Auteur</th><th>ISBN</th><th>Disponibles</th></tr></thead>
+      <tbody id="books"></tbody>
+    </table>
+    <form id="book-form">
+      <input name="isbn" placeholder="ISBN" required>
+      <input name="title" placeholder="Titre" required>
+      <input name="author" placeholder="Auteur" required>
+      <input name="totalCopies" type="number" min="1" value="1" required>
+      <button>Ajouter un livre</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>Adhérents</h2>
+    <table>
+      <thead><tr><th>Id</th><th>Nom</th><th>Email</th></tr></thead>
+      <tbody id="members"></tbody>
+    </table>
+    <form id="member-form">
+      <input name="name" placeholder="Nom" required>
+      <input name="email" type="email" placeholder="Email" required>
+      <button>Ajouter un adhérent</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>Emprunts</h2>
+    <form id="loan-form">
+      <select name="memberId" id="member-select" required></select>
+      <select name="bookId" id="book-select" required></select>
+      <button>Emprunter</button>
+    </form>
+    <table>
+      <thead><tr><th>Id</th><th>Adhérent</th><th>Livre</th><th>Retour prévu</th><th>Statut</th><th></th></tr></thead>
+      <tbody id="loans"></tbody>
+    </table>
+  </section>
+
+<script>
+  const API = 'http://localhost:8080/api';
+
+  async function api(path, options = {}) {
+    const response = await fetch(API + path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      const details = body && body.details && body.details.length ? ' (' + body.details.join(', ') + ')' : '';
+      throw new Error((body && body.message ? body.message : response.statusText) + details);
+    }
+    return body;
+  }
+
+  function show(text, isError) {
+    const el = document.getElementById('message');
+    el.textContent = text;
+    el.className = isError ? 'error' : 'ok';
+  }
+
+  function esc(value) {
+    const div = document.createElement('div');
+    div.textContent = value == null ? '' : String(value);
+    return div.innerHTML;
+  }
+
+  async function refresh() {
+    try {
+      const [books, members, loans] = await Promise.all([api('/books'), api('/members'), api('/loans')]);
+
+      document.getElementById('books').innerHTML = books.map(b =>
+        `<tr><td>${b.id}</td><td>${esc(b.title)}</td><td>${esc(b.author)}</td><td>${esc(b.isbn)}</td>` +
+        `<td>${b.availableCopies} / ${b.totalCopies}</td></tr>`).join('');
+
+      document.getElementById('members').innerHTML = members.map(m =>
+        `<tr><td>${m.id}</td><td>${esc(m.name)}</td><td>${esc(m.email)}</td></tr>`).join('');
+
+      document.getElementById('member-select').innerHTML = members.map(m =>
+        `<option value="${m.id}">${esc(m.name)}</option>`).join('');
+      document.getElementById('book-select').innerHTML = books.map(b =>
+        `<option value="${b.id}">${esc(b.title)} (${b.availableCopies} dispo)</option>`).join('');
+
+      document.getElementById('loans').innerHTML = loans.map(l =>
+        `<tr><td>${l.id}</td><td>${esc(l.memberName)}</td><td>${esc(l.bookTitle)}</td><td>${l.dueDate}</td>` +
+        `<td>${l.status === 'ACTIVE' ? 'En cours' : 'Rendu le ' + l.returnDate}</td>` +
+        `<td>${l.status === 'ACTIVE' ? `<button onclick="returnLoan(${l.id})">Rendre</button>` : ''}</td></tr>`).join('');
+    } catch (e) {
+      show('Impossible de joindre l\'API : ' + e.message, true);
+    }
+  }
+
+  async function submitForm(event, path, toBody, successText) {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(event.target));
+    try {
+      await api(path, { method: 'POST', body: JSON.stringify(toBody(data)) });
+      show(successText, false);
+      if (path !== '/loans') event.target.reset();
+      await refresh();
+    } catch (e) {
+      show(e.message, true);
+    }
+  }
+
+  async function returnLoan(id) {
+    try {
+      await api(`/loans/${id}/return`, { method: 'PUT' });
+      show('Livre rendu.', false);
+      await refresh();
+    } catch (e) {
+      show(e.message, true);
+    }
+  }
+
+  document.getElementById('book-form').addEventListener('submit', e =>
+    submitForm(e, '/books', d => ({ ...d, totalCopies: Number(d.totalCopies) }), 'Livre ajouté.'));
+  document.getElementById('member-form').addEventListener('submit', e =>
+    submitForm(e, '/members', d => d, 'Adhérent ajouté.'));
+  document.getElementById('loan-form').addEventListener('submit', e =>
+    submitForm(e, '/loans', d => ({ memberId: Number(d.memberId), bookId: Number(d.bookId) }), 'Emprunt enregistré.'));
+
+  refresh();
+</script>
+</body>
+</html>

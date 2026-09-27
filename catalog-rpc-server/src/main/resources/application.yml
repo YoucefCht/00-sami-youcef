@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: catalog-rpc-server
+  main:
+    # Pas de serveur HTTP : ce service n'expose que du gRPC
+    web-application-type: none
+  datasource:
+    url: jdbc:h2:mem:catalogdb;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    # data.sql est exécuté après la création des tables par Hibernate
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: always
+
+grpc:
+  server:
+    port: 9090
+
+logging:
+  level:
+    root: INFO
+    fr.library: DEBUG
